@@ -79,6 +79,8 @@ def bars(symbols, timeframe, start, end, feed="sip", batch=200):
     """Multi-symbol bars with paging. Returns {sym: [bar, ...]} oldest->newest."""
     out = {}
     symbols = list(symbols)
+      if feed == "sip":
+        end = min(end, datetime.now(ET) - timedelta(minutes=16))
     for i in range(0, len(symbols), batch):
         chunk = symbols[i:i + batch]
         token = None

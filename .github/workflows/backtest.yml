@@ -1,0 +1,32 @@
+name: Backtest
+
+on:
+  workflow_dispatch:
+    inputs:
+      months:
+        description: "How many months back to test"
+        default: "12"
+      start_equity:
+        description: "Starting account size"
+        default: "640"
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run backtest
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          BT_MONTHS: ${{ inputs.months }}
+          START_EQUITY: ${{ inputs.start_equity }}
+        run: python backtest.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backtest-trades
+          path: backtest_trades.csv

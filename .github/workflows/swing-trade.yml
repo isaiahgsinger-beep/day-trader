@@ -1,0 +1,35 @@
+name: Swing trader
+
+# Once each weekday, right after the 9:30 AM ET open.
+# (Two times so it works in both summer and winter time; the extra run does nothing.)
+on:
+  schedule:
+    - cron: "20 13 * * 1-5"
+    - cron: "20 14 * * 1-5"
+  workflow_dispatch: {}
+
+concurrency:
+  group: swing
+  cancel-in-progress: false
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install numpy
+      - name: Trade
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          ALPACA_LIVE: ${{ vars.ALPACA_LIVE || 'no' }}
+          DRY_RUN: ${{ vars.DRY_RUN || 'no' }}
+          STRATEGY: ${{ vars.STRATEGY || '' }}
+          TOP_K: ${{ vars.TOP_K || '' }}
+          LOSS_FLOOR: ${{ vars.LOSS_FLOOR || '0' }}
+          PEAK_DRAWDOWN_STOP: ${{ vars.PEAK_DRAWDOWN_STOP || '0.40' }}
+        run: python swing_live.py

@@ -1,0 +1,33 @@
+name: Strategy lab
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: "Test from (YYYY-MM-DD)"
+        default: "2016-01-01"
+      start_equity:
+        description: "Starting account size"
+        default: "640"
+
+jobs:
+  lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install numpy
+      - name: Run strategy lab
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          START_DATE: ${{ inputs.start_date }}
+          START_EQUITY: ${{ inputs.start_equity }}
+        run: python swing_backtest.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: strategy-lab-equity
+          path: strategy_lab_equity.csv

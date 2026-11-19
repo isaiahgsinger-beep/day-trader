@@ -43,9 +43,13 @@ VARIANTS = [
     ("Wider stop (25% of ATR)", START_EQUITY, V(stop_atr=0.25)),
     ("With market filter", START_EQUITY, V(market_filter=True)),
     ("Same rules starting at $2,000 (adds shorts + 2x)", 2000.0, V()),
+    ("Your setup with LOW trading costs (0.05% each way)", START_EQUITY, V(entry_slip=0.0005, exit_slip=0.0005)),
     ("CHECK: research setup ($25k, 20 at once, 4x leverage, long+short)", 25000.0,
      V(watch_top=20, max_positions=20, max_leverage=4.0, allow_short=True, risk_pct=0.01,
        max_trades_per_day=40, daily_loss_limit=1.0, min_fill=0.0)),
+    ("CHECK with low costs (closest to the research's assumptions)", 25000.0,
+     V(watch_top=20, max_positions=20, max_leverage=4.0, allow_short=True, risk_pct=0.01,
+       max_trades_per_day=40, daily_loss_limit=1.0, min_fill=0.0, entry_slip=0.0005, exit_slip=0.0005)),
 ]
 
 
@@ -97,7 +101,8 @@ def main():
             ranked = {m: s.rank_in_play({k: v for k, v in today_or[m].items() if k != "SPY"},
                                         hist[m], stats, s.PARAMS) for m in or_choices}
             need = sorted({x["symbol"] for m in or_choices for x in ranked[m]})
-            full = c.bars(need, "5Min", o, o + timedelta(hours=6, minutes=30), feed="sip") if need else {}
+            # 1-minute bars so we can tell whether the entry or the stop happened first
+            full = c.bars(need, "1Min", o, o + timedelta(hours=6, minutes=30), feed="sip") if need else {}
             spy_or = {m: today_or[m].get("SPY") for m in or_choices}
 
             for name, _, p0 in VARIANTS:
@@ -115,11 +120,16 @@ def main():
                     after = [b for b in day_bars if c.bar_time_et(b) >= o + timedelta(minutes=m)]
                     if not after:
                         continue
-                    last_entry_i = max(0, (p["last_entry_minute"] - m) // 5)
-                    exit_i = min((370 - m) // 5, len(after) - 4) if len(after) > 4 else len(after) - 1
-                    res = s.simulate_trade(plan, after, SLIPPAGE, ENTRY_SLIPPAGE, last_entry_i, exit_i,
-                                           p["breakeven_at_r"])
+                    mins = [(c.bar_time_et(b) - o).total_seconds() / 60 for b in after]
+                    entry_ok = [i for i, x in enumerate(mins) if x < p["last_entry_minute"]]
+                    exit_ok = [i for i, x in enumerate(mins) if x < 375]   # last bar before 3:45 PM
+                    if not entry_ok or not exit_ok:
+                        continue
+                    res = s.simulate_trade(plan, after, p.get("exit_slip", SLIPPAGE), p.get("entry_slip", ENTRY_SLIPPAGE),
+                                           entry_ok[-1], exit_ok[-1], p["breakeven_at_r"])
                     if res:
+                        # compare trades across stocks by clock time, not bar number
+                        res["entry_index"], res["exit_index"] = mins[res["entry_index"]], mins[res["exit_index"]]
                         res.update(symbol=plan["symbol"], side=plan["side"], qty=plan["qty"], day=day)
                         sims.append(res)
                 taken = s.take_trades(sims, p, eq)

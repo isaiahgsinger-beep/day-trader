@@ -1,0 +1,41 @@
+name: Day trader
+
+# Runs the trader all session long in two "shifts" (GitHub caps one run at 6 hours).
+# Times are UTC and cover both winter and summer time; the program itself
+# checks the market clock and exits if it's too early.
+on:
+  schedule:
+    - cron: "17 13 * * 1-5"   # shift 1: ~9:17 AM ET in summer
+    - cron: "17 14 * * 1-5"   # shift 1: ~9:17 AM ET in winter
+    - cron: "7 19 * * 1-5"    # shift 2 (waits for shift 1 to finish)
+    - cron: "7 20 * * 1-5"    # shift 2
+  workflow_dispatch: {}       # "Run workflow" button
+
+concurrency:
+  group: trader               # never two traders at once; the next shift waits its turn
+  cancel-in-progress: false
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 358
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Trade
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          ALPACA_LIVE: ${{ vars.ALPACA_LIVE || 'no' }}
+          DRY_RUN: ${{ vars.DRY_RUN || 'no' }}
+          LOSS_FLOOR: ${{ vars.LOSS_FLOOR || '0' }}
+          MAX_POSITIONS: ${{ vars.MAX_POSITIONS || 'auto' }}
+          MAX_LEVERAGE: ${{ vars.MAX_LEVERAGE || 'auto' }}
+          ALLOW_SHORT: ${{ vars.ALLOW_SHORT || 'auto' }}
+          RISK_PCT: ${{ vars.RISK_PCT || '0.015' }}
+          WATCH_TOP: ${{ vars.WATCH_TOP || '6' }}
+          BREAKEVEN_AT_R: ${{ vars.BREAKEVEN_AT_R || '0' }}
+          MARKET_FILTER: ${{ vars.MARKET_FILTER || 'no' }}
+        run: python live.py
